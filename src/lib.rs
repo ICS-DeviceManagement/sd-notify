@@ -241,45 +241,44 @@ fn fd_cloexec(fd: u32) -> io::Result<()> {
 /// ```no_run
 /// # use sd_notify;
 /// #
-/// let mut usec;
+/// let mut usec = 0;
 /// let enabled = sd_notify::watchdog_enabled(true, &mut usec);
 /// ```
 pub fn watchdog_enabled(unset_env: bool, usec: &mut u64) -> io::Result<bool> {
+    struct Guard {
+        unset_env: bool,
+    }
+
+    impl Drop for Guard {
+        fn drop(&mut self) {
+            if self.unset_env {
+                env::remove_var("WATCHDOG_USEC");
+                env::remove_var("WATCHDOG_PID");
+            }
+        }
+    }
+
+    let _guard = Guard { unset_env };
+
     let s = env::var_os("WATCHDOG_USEC");
     let p = env::var_os("WATCHDOG_PID");
-
-    let finish = |res: io::Result<bool>| -> io::Result<bool> {
-        if unset_env {
-            env::remove_var("WATCHDOG_USEC");
-            env::remove_var("WATCHDOG_PID");
-        }
-
-        res
-    };
 
     if let Some(t) = s
         .to_owned()
         .and_then(|s| s.to_str().and_then(|s| u64::from_str(s).ok()))
     {
-        if t <= 0 || t >= u64::MAX {
-            return finish(Err(io::Error::new(
-                ErrorKind::InvalidData,
-                "cannot parse WATCHDOG_USEC time",
-            )));
-        }
-
         if let Some(pid) = p
             .to_owned()
             .and_then(|s| s.to_str().and_then(|s| u32::from_str(s).ok()))
         {
             if process::id() == pid {
                 *usec = t;
-                return finish(Ok(true));
+                return Ok(true);
             }
         }
     }
 
-    return finish(Ok(false));
+    return Ok(false);
 }
 
 #[cfg(test)]
