@@ -289,6 +289,7 @@ mod tests {
     use std::fs;
     use std::os::unix::net::UnixDatagram;
     use std::path::PathBuf;
+    use std::process;
 
     struct SocketHelper(PathBuf, UnixDatagram);
 
@@ -356,5 +357,51 @@ mod tests {
         assert!(super::listen_fds().is_err());
         assert!(env::var_os("LISTEN_PID").is_none());
         assert!(env::var_os("LISTEN_FDS").is_none());
+    }
+
+    #[test]
+    fn watchdog_enabled() {
+        // test original logic: https://github.com/systemd/systemd/blob/f3376ee8fa28aab3f7edfad1ddfbcceca5bc841c/src/libsystemd/sd-daemon/sd-daemon.c#L632
+        
+        // invalid pid and unset env
+        env::set_var("WATCHDOG_USEC", "5");
+        env::set_var("WATCHDOG_PID", "1");
+        
+        let mut usec = 0;
+        assert_eq!(super::watchdog_enabled(true, &mut usec).unwrap(), false);
+        assert_eq!(usec, 0 as u64);
+
+        assert!(env::var_os("WATCHDOG_USEC").is_none());
+        assert!(env::var_os("WATCHDOG_PID").is_none());
+                
+        // invalid usec and no unset env
+        env::set_var("WATCHDOG_USEC", "invalid-usec");
+        env::set_var("WATCHDOG_PID", process::id().to_string());
+        
+        let mut usec = 0;
+        assert_eq!(super::watchdog_enabled(true, &mut usec).unwrap(), false);
+        assert_eq!(usec, 0);
+
+        assert!(env::var_os("WATCHDOG_USEC").is_none());
+        assert!(env::var_os("WATCHDOG_PID").is_none());
+                
+        // no usec, no pip no unset env        
+        let mut usec = 0;
+        assert_eq!(super::watchdog_enabled(false, &mut usec).unwrap(), false);
+        assert_eq!(usec, 0);
+
+        assert!(env::var_os("WATCHDOG_USEC").is_none());
+        assert!(env::var_os("WATCHDOG_PID").is_none());
+
+        // valid pip
+        env::set_var("WATCHDOG_USEC", "5");
+        env::set_var("WATCHDOG_PID", process::id().to_string());
+        
+        let mut usec = 0;
+        assert_eq!(super::watchdog_enabled(false, &mut usec).unwrap(), true);
+        assert_eq!(usec, 5 as u64);
+        assert!(env::var_os("WATCHDOG_USEC").is_some());
+        assert!(env::var_os("WATCHDOG_PID").is_some());
+
     }
 }
