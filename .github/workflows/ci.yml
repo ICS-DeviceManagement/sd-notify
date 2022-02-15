@@ -6,58 +6,40 @@ on:
     branches:
       - master
 
+env:
+  CARGO_INCREMENTAL: 0
+
 jobs:
   build:
-
     name: Build
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v1
 
-    - name: Checkout
-      uses: actions/checkout@v1
-
-    - name: Install toolchain
-      uses: actions-rs/toolchain@v1
-      with:
+      - name: Install toolchain
+        uses: actions-rs/toolchain@v1
+        with:
           toolchain: stable
           profile: minimal
+          override: true
           components: rustfmt, clippy
 
-    - name: Fetch
-      uses: actions-rs/cargo@v1
-      with:
-        command: fetch
+      - name: Fetch
+        run: cargo fetch
 
-    - name: Format
-      uses: actions-rs/cargo@v1
-      with:
-        command: fmt
-        arguments: -- --check
+      - name: Format
+        run: cargo fmt -- --check
 
-    - name: Check
-      env:
-        CARGO_INCREMENTAL: 0
-      uses: actions-rs/cargo@v1
-      with:
-        command: check
+      - name: Build
+        run: cargo build
 
-    - name: Build
-      uses: actions-rs/cargo@v1
-      with:
-        command: build
+      - name: Clippy
+        run: cargo clippy -- -D warnings
 
-    - name: Clippy
-      uses: actions-rs/cargo@v1
-      env:
-        CARGO_INCREMENTAL: 0
-      with:
-        command: clippy
-        arguments: -- -D warnings
+      - name: Build tests
+        run: cargo test --no-run
 
-    - name: Test
-      uses: actions-rs/cargo@v1
-      env:
-        CARGO_INCREMENTAL: 0
-      with:
-        command: test
+      - name: Test
+        run: cargo test
