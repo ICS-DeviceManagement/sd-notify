@@ -242,7 +242,7 @@ fn fd_cloexec(fd: u32) -> io::Result<()> {
 /// # use sd_notify;
 /// #
 /// let mut usec;
-/// let enabled = sd_notify::watchdog_enabled(true, usec);
+/// let enabled = sd_notify::watchdog_enabled(true, &mut usec);
 /// ```
 pub fn watchdog_enabled(unset_env: bool, usec: &mut u64) -> io::Result<bool> {
     let s = env::var_os("WATCHDOG_USEC");
@@ -265,9 +265,9 @@ pub fn watchdog_enabled(unset_env: bool, usec: &mut u64) -> io::Result<bool> {
             return finish(Err(io::Error::new(
                 ErrorKind::InvalidData,
                 "cannot parse WATCHDOG_USEC time",
-            )))
+            )));
         }
-        
+
         if let Some(pid) = p
             .to_owned()
             .and_then(|s| s.to_str().and_then(|s| u32::from_str(s).ok()))
@@ -362,30 +362,30 @@ mod tests {
     #[test]
     fn watchdog_enabled() {
         // test original logic: https://github.com/systemd/systemd/blob/f3376ee8fa28aab3f7edfad1ddfbcceca5bc841c/src/libsystemd/sd-daemon/sd-daemon.c#L632
-        
+
         // invalid pid and unset env
         env::set_var("WATCHDOG_USEC", "5");
         env::set_var("WATCHDOG_PID", "1");
-        
+
         let mut usec = 0;
         assert_eq!(super::watchdog_enabled(true, &mut usec).unwrap(), false);
         assert_eq!(usec, 0 as u64);
 
         assert!(env::var_os("WATCHDOG_USEC").is_none());
         assert!(env::var_os("WATCHDOG_PID").is_none());
-                
+
         // invalid usec and no unset env
         env::set_var("WATCHDOG_USEC", "invalid-usec");
         env::set_var("WATCHDOG_PID", process::id().to_string());
-        
+
         let mut usec = 0;
         assert_eq!(super::watchdog_enabled(true, &mut usec).unwrap(), false);
         assert_eq!(usec, 0);
 
         assert!(env::var_os("WATCHDOG_USEC").is_none());
         assert!(env::var_os("WATCHDOG_PID").is_none());
-                
-        // no usec, no pip no unset env        
+
+        // no usec, no pip no unset env
         let mut usec = 0;
         assert_eq!(super::watchdog_enabled(false, &mut usec).unwrap(), false);
         assert_eq!(usec, 0);
@@ -396,12 +396,11 @@ mod tests {
         // valid pip
         env::set_var("WATCHDOG_USEC", "5");
         env::set_var("WATCHDOG_PID", process::id().to_string());
-        
+
         let mut usec = 0;
         assert_eq!(super::watchdog_enabled(false, &mut usec).unwrap(), true);
         assert_eq!(usec, 5 as u64);
         assert!(env::var_os("WATCHDOG_USEC").is_some());
         assert!(env::var_os("WATCHDOG_PID").is_some());
-
     }
 }
